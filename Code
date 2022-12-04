@@ -1,0 +1,235 @@
+%initial parameter----------
+r=3.9;
+x=0.7;
+N=1000;
+k=14;
+g=2^k;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%taking input of the original image
+img=imread('Imag.jpg');
+
+ss = size(img) ;  
+type = size(ss) ;
+type = type(1,2) ;
+if type == 3
+  img=rgb2gray(img);
+end
+  a = img;  
+ 
+imshow(a);
+ab1=a(:);
+
+quant=zeros(256,1);
+for i=1:size(ab1,1)
+     quant(ab1(i)+1)=quant(ab1(i)+1)+1;
+end
+
+% Image confusion
+
+[~, M]=size(a);
+Vect=zeros(1,M*M);
+Vect(1)=a(1,1);
+v=1;
+for q=1:2*M-1
+    if q<=M
+        if mod(q,2)==0
+        j=q;
+        for i=1:q
+        Vect(v)=a(i,j);
+        v=v+1;j=j-1;    
+        end
+        else
+        i=q;
+        for j=1:q   
+        Vect(v)=a(i,j);
+        v=v+1;i=i-1; 
+        end
+        end
+    else
+        if mod(q,2)==0
+        p=mod(q,M); j=M;
+        for i=p+1:M
+        Vect(v)=a(i,j);
+        v=v+1;j=j-1;    
+        end
+        else
+        p=mod(q,M);i=M;
+        for j=p+1:M   
+        Vect(v)=a(i,j);
+        v=v+1;i=i-1; 
+        end
+        end
+    end
+end
+
+f1=reshape(uint8(Vect),size(a,1),size(a,2));
+imshow(f1);
+
+% Key Generation
+
+ab=Vect;
+X=zeros(size(a,1)*size(a,2)+N,1);
+sise=size(a,1)*size(a,2)+N;
+
+for i=1:sise
+       %logistic map implementation
+       X(i,1)=r*x*(1-x)*g-floor(r*x*(1-x)*g);
+       %modified logistic map
+       X(i,1)=mod((1000*(X(i)+abs(X(i)))),1);
+       x=X(i,1);
+end
+
+%ignoring the first N elements
+X=X(N+1:end,:);
+
+%generation of permutation matrix: X_prime
+[useless,X_prime]=sort(X);
+a_prime=zeros(size(a,1)*size(a,2),1);
+for i=1:size(a,1)*size(a,2)
+    %generation of permuted image pixel
+    a_prime(i,1)=ab(1,X_prime(i,1));
+end
+
+% f is the image generated after permutation
+f=reshape(uint8(a_prime),size(a,1),size(a,2));
+imshow(f);
+
+%generation of diffusion matrix
+d_prime=uint8(mod(floor((X)*(10^14)),256));
+h=uint8(d_prime(:));
+C=uint8(zeros(size(a,1)*size(a,2),1));
+C2=uint8(zeros(size(C)));
+
+%obtaining the encrypted image
+%----
+C=h(1);
+for i=2:size(a,1)*size(a,2)
+C(i)=bitxor(uint8(mod(a_prime(i)+h(i),256)),uint8(C(i-1)));
+end
+%----
+
+%viewing the encrypted image
+s=reshape(uint8(C),size(a,1),size(a,2));
+imshow(s);
+
+%saving the encrypted image
+%imwrite(s,'D:\enc.png');
+
+
+
+% Decryption of Image 
+
+ab2=s(:);
+quant1=zeros(256,1);
+for i=1:size(ab2,1)
+     quant1(ab2(i)+1)=quant1(ab2(i)+1)+1;
+end
+
+% Bit-wise XOR between key and Encrypted image to get Scrambled image
+
+final_img1=uint8(zeros(size(a,1)*size(a,2),1));
+final_img2=uint8(zeros(size(a,1)*size(a,2),1));
+final_img(1)=C(1);
+
+for i=2:size(a,1)*size(a,2)
+   C(i)=bitxor(uint8(mod(a_prime(i)+h(i),256)),uint8(C(i-1)));
+end
+
+for i=1:size(a,1)*size(a,2)
+    final_img2(X_prime(i,1),1)=a_prime(i);
+end
+
+f3=reshape(uint8(final_img2),size(a,1),size(a,2));
+imshow(f3);
+
+% inverse zig zag Pattern operation to return each block to its original
+% position
+
+in = final_img2;
+vmax = size(a,1);
+hmax = size(a,2);
+h3 = 1;
+v3 = 1;
+vmin = 1;
+hmin = 1;
+output = zeros(vmax, hmax);
+i = 1;
+%----------------------------------
+while ((v3 <= vmax) & (h3 <= hmax))
+    if (mod(h3 + v3, 2) == 0)                % going up
+        if (v3 == vmin)
+            output(v3, h3) = in(i);
+            if (h3 == hmax)
+	      v3 = v3 + 1;
+	    else
+              h3 = h3 + 1;
+            end
+            i = i + 1;
+        elseif ((h3 == hmax) & (v3 < vmax))
+            output(v3, h3) = in(i);
+            i;
+            v3 = v3 + 1;
+            i = i + 1;
+        elseif ((v3 > vmin) & (h3 < hmax))
+            output(v3, h3) = in(i);
+            v3 = v3 - 1;
+            h3 = h3 + 1;
+            i = i + 1;
+        end
+        
+    else                                    % going down
+       if ((v3 == vmax) & (h3 <= hmax))
+            output(v3, h3) = in(i);
+            h3 = h3 + 1;
+            i = i + 1;
+        
+       elseif (h3 == hmin)
+            output(v3, h3) = in(i);
+            if (v3 == vmax)
+	      h3 = h3 + 1;
+	    else
+              v3 = v3 + 1;
+            end
+            i = i + 1;
+       elseif ((v3 < vmax) & (h3 > hmin))
+            output(v3, h3) = in(i);
+            v3 = v3 + 1;
+            h3 = h3 - 1;
+            i = i + 1;
+       end
+    end
+    if ((v3 == vmax) & (h3 == hmax))
+        output(v3, h3) = in(i);
+        break
+    end
+end
+
+
+% Decrypted Image
+w=reshape(uint8(output),size(a,1),size(a,2));
+imshow(w);
+
+%imwrite(w,'D:\dcy.png');
+bar(1:size(quant,1),quant);
+bar(1:size(quant1,1),quant1);
+
+
+
+%  Analysis of Encryption Efficiency 
+% ---------------------------------------------------
+
+
+ % psnr values finding out
+
+ org=A;
+ dimg=double(w);
+ [M, P]=size(org);
+ error=org-dimg;
+ MSE=sum(sum(error.*error))/(M*P);
+ if(MSE>0)
+     PSNR=10*log(255*255/MSE)/log(10)
+ else
+     PSNR=99
+ end
